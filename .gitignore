@@ -1,0 +1,94 @@
+# Début du gitignore pour .NET
+## Ignorer les résultats de compilation
+bin/
+obj/
+
+## Fichiers de build
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.ncrunchproject
+*.vs/
+
+## Fichiers de publication
+publish/
+*.pdb
+*.pubxml
+
+## Fichiers de cache et temporaires
+.cache/
+*.cache
+[Tt]humbs.db
+[Tt]emp/
+
+## Fichiers de configuration local
+appsettings.Development.json
+appsettings.Local.json
+launchSettings.json
+
+## Fichiers de logs
+*.log
+logs/
+Logs/
+
+## Packages NuGet
+.nuget/
+packages/
+*.nupkg
+NuGet.exe
+
+## Rider
+.idea/
+*.sln.iml
+
+## VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## macOS
+.DS_Store
+
+## Linux
+*~
+
+## Windows
+*.swp
+*.swo
+
+## Tests
+TestResults/
+*.trx
+*.coverage
+.coverage
+
+## Database
+*.mdf
+*.ldf
+*.sdf
+
+## Backup files
+*.bak
+*.tmp
+*.temp
+
+## Runtime
+.project
+*project.lock.json
+*.runtimeconfig.json
+*.runtimeconfig.dev.json
+
+## Coverage
+coverage.xml
+coverage.json
+htmlcov/
+
+## Performance
+*.origin.cs
+*.dotCover
+
+## SonarQube
+.sonarqube/
