@@ -1,8 +1,8 @@
+using System.Diagnostics;
 using MinimalAPI.Features.Test.Handlers;
 using MinimalAPI.Features.Test.Models;
 using MinimalAPI.Features.Test.Validators;
 using MinimalAPI.Shared;
-using System.Diagnostics;
 
 namespace MinimalAPI.Features.Test;
 
