@@ -118,14 +118,39 @@ Features/
 
 Tous les endpoints suivent le pattern :
 ```
-/api/{feature}/{action}?version={version}
+/api/{resources}?version={version}
 ```
 
-### Exemples
-- `GET /api/user/get?version=v1`
-- `POST /api/user/create?version=v2`
-- `GET /api/product/list?version=v1`
-- `PUT /api/order/update?version=v2`
+### Règles strictes
+
+1. **Pas de trailing forward slash** : ❌ `/api/users/` → ✅ `/api/users`
+2. **Kebab-case (lower-kebab-case)** : Utiliser des tirets pour séparer les mots
+   - ✅ `/api/user-profiles`
+   - ❌ `/api/userProfiles` ou `/api/user_profiles`
+3. **Pas d'action dans l'endpoint** : Le verbe HTTP définit l'action
+   - ❌ `/api/users/get` ou `/api/users/create`
+   - ✅ `GET /api/users` ou `POST /api/users`
+4. **Toujours au pluriel** : Les ressources sont toujours au pluriel
+   - ✅ `/api/users`, `/api/orders`, `/api/products`
+   - ❌ `/api/user`, `/api/order`
+5. **Éviter la complexité** : Pas de nesting profond
+   - ❌ `/api/customers/2/stores/31/orders/153/items/active`
+   - ✅ `/api/orders/153/items/active` (si on connaît l'ID de la commande)
+
+### Exemples corrects
+- `GET /api/users?version=v1`
+- `POST /api/users?version=v2`
+- `GET /api/user-profiles?version=v1`
+- `PUT /api/orders/123?version=v2`
+- `GET /api/orders/123/items?version=v1`
+- `DELETE /api/products/456?version=v1`
+
+### Exemples incorrects
+- ❌ `GET /api/user/get?version=v1` (action dans l'URL)
+- ❌ `POST /api/user/create?version=v2` (action dans l'URL)
+- ❌ `GET /api/users/?version=v1` (trailing slash)
+- ❌ `GET /api/userProfiles?version=v1` (camelCase au lieu de kebab-case)
+- ❌ `GET /api/user?version=v1` (singulier au lieu de pluriel)
 
 ### Gestion de la version
 
@@ -139,32 +164,42 @@ Tous les endpoints suivent le pattern :
 ```csharp
 public static class FeatureNameEndpoints
 {
-    public static void MapFeatureNameEndpoints(this WebApplication app)
+    public static void MapFeatureNameEndpoints(this WebApplication app, IConfiguration configuration)
     {
-        var group = app.MapGroup("/api/featurename")
-            .WithTags("FeatureName");
+        var group = app.MapGroup("/api/resources")
+            .WithTags("Resources");
 
-        group.MapGet("/action", HandleAction)
-            .WithName("GetAction")
-            .Produces<ResponseType>(200);
+        group.MapGet("/", HandleGetAll)
+            .WithName("GetResources")
+            .Produces<ResourceResponse>(200)
+            .Produces<ErrorResponse>(400);
+
+        group.MapGet("/{id}", HandleGetById)
+            .WithName("GetResourceById")
+            .Produces<ResourceResponse>(200)
+            .Produces<ErrorResponse>(404);
+
+        group.MapPost("/", HandleCreate)
+            .WithName("PostResources")
+            .Accepts<CreateResourceRequest>("application/json")
+            .Produces<ResourceResponse>(200)
+            .Produces<ErrorResponse>(400);
     }
 
-    private static async Task<IResult> HandleAction(
-        string version,
-        [AsParameters] Request request)
+    private static Task<IResult> HandleGetAll(
+        string? version,
+        IConfiguration configuration)
     {
-        // Validation de la version
+        var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
         var apiVersion = string.IsNullOrEmpty(version) 
-            ? GetDefaultVersion() 
+            ? GetDefaultVersion(configuration) 
             : version;
 
-        // Appel du handler
-        var result = await Handler.Handle(request, apiVersion);
-        
-        return result.Match(
-            success => Results.Ok(success),
-            error => Results.BadRequest(error)
-        );
+        return ErrorHandlingExtensions.HandleAsync(async () =>
+        {
+            var result = ResourceHandler.GetAll(apiVersion);
+            return await Task.FromResult(result);
+        }, traceId);
     }
 }
 ```
@@ -336,6 +371,35 @@ Le fichier `.csproj` de test doit inclure :
 
 ## Organisation du code
 
+### Program.cs doit rester très clean
+
+Le fichier `Program.cs` doit être minimal et lisible :
+
+```csharp
+using MinimalAPI.Configuration;
+using MinimalAPI.Features.Test;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSwaggerConfiguration();
+
+var app = builder.Build();
+
+app.UseSwaggerConfiguration();
+
+app.MapGet("/", () => "Hello World!");
+
+app.MapTestEndpoints(app.Configuration);
+
+app.Run();
+```
+
+**Règles** :
+- Pas de configuration complexe dans `Program.cs`
+- Swagger dans `Configuration/SwaggerConfiguration.cs`
+- Tous les endpoints dans leurs fichiers `Endpoints.cs` respectifs
+- Maximum 15-20 lignes dans `Program.cs`
+
 ### Ordre des éléments dans un fichier
 
 1. **Usings** (si pas d'ImplicitUsings)
@@ -350,6 +414,7 @@ Le fichier `.csproj` de test doit inclure :
 - **Validators** : Validation des données d'entrée
 - **Models** : Types de données immutables
 - **Endpoints** : Point d'entrée HTTP, orchestration, pas de logique métier
+- **Configuration** : Configuration Swagger, services, etc. dans `Configuration/`
 
 ### Flux de données
 
@@ -435,6 +500,62 @@ Avant de créer une nouvelle feature, vérifier :
 
 ---
 
+## Gestion d'erreurs structurées
+
+### Principe
+
+**Jamais de plain error 500** : Toujours retourner des erreurs structurées avec des informations utiles.
+
+### ErrorResponse
+
+Utiliser le type `ErrorResponse` pour toutes les erreurs :
+
+```csharp
+public record ErrorResponse
+{
+    public string ErrorCode { get; init; }
+    public string Message { get; init; }
+    public string? Details { get; init; }
+    public DateTime Timestamp { get; init; }
+    public string? TraceId { get; init; }
+}
+```
+
+### Utilisation
+
+```csharp
+// Erreur de validation
+var error = ErrorResponse.ValidationError("Email is required");
+
+// Erreur not found
+var error = ErrorResponse.NotFound("User", userId);
+
+// Erreur interne avec traceId
+var error = ErrorResponse.InternalError("Database connection failed", traceId);
+```
+
+### ErrorHandlingExtensions
+
+Utiliser les extensions pour gérer les erreurs automatiquement :
+
+```csharp
+return ErrorHandlingExtensions.HandleAsync(async () =>
+{
+    var result = Handler.Handle(request);
+    return await Task.FromResult(result);
+}, traceId);
+```
+
+### Règles
+
+- **Toujours un traceId** : Pour pouvoir tracer les erreurs en production
+- **Codes d'erreur explicites** : `VALIDATION_ERROR`, `NOT_FOUND`, `INTERNAL_ERROR`
+- **Messages clairs** : Expliquer ce qui s'est passé
+- **Pas de stack trace** : En production, seulement en développement
+- **Tests obligatoires** : Tester tous les cas d'erreur
+
+---
+
 ## Notes importantes
 
 - Ce ruleset doit être suivi **à la lettre**
@@ -442,6 +563,8 @@ Avant de créer une nouvelle feature, vérifier :
 - Les tests sont **obligatoires** avant toute merge
 - La programmation fonctionnelle est **non négociable**
 - Le formatage du code avec `dotnet format` est **obligatoire** avant chaque commit
+- **Program.cs doit rester très clean** : Maximum 15-20 lignes
+- **Pas de plain error 500** : Toujours des erreurs structurées
 
 ---
 
