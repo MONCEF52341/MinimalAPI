@@ -149,6 +149,7 @@ Tous les endpoints suivent le pattern :
 - ❌ `GET /api/user/get?version=v1` (action dans l'URL)
 - ❌ `POST /api/user/create?version=v2` (action dans l'URL)
 - ❌ `GET /api/users/?version=v1` (trailing slash)
+- ❌ `GET /api/v3/users` (la version est un pathVariable)
 - ❌ `GET /api/userProfiles?version=v1` (camelCase au lieu de kebab-case)
 - ❌ `GET /api/user?version=v1` (singulier au lieu de pluriel)
 
@@ -477,8 +478,14 @@ dotnet format MinimalAPI.sln --verify-no-changes
 ### Configuration
 
 Le formatage suit les règles définies dans :
-- `.editorconfig` (si présent)
-- Conventions C# par défaut de .NET
+- **`.editorconfig`** : Fichier de configuration à la racine du projet
+  - Conventions C# modernes
+  - Règles de nommage
+  - Préférences d'indentation et d'espacement
+  - Utilisé automatiquement par `dotnet format` et les IDE
+- Conventions C# par défaut de .NET (si non spécifié dans `.editorconfig`)
+
+Le fichier `.editorconfig` est **obligatoire** et doit être présent à la racine du projet.
 
 ---
 
