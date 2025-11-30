@@ -377,6 +377,46 @@ HTTP Response
 
 ---
 
+## Formatage du code
+
+### Outil de formatage
+
+Le projet utilise **`dotnet format`** pour maintenir un style de code cohérent.
+
+### Commandes
+
+```bash
+# Formater tous les fichiers du projet
+dotnet format MinimalAPI.sln
+
+# Formater uniquement le projet principal
+dotnet format MinimalAPI.csproj
+
+# Vérifier le formatage sans modifier (dry-run)
+dotnet format MinimalAPI.sln --verify-no-changes
+```
+
+### Règles de formatage
+
+- **Formatage automatique** : Exécuter `dotnet format` avant chaque commit
+- **Vérification CI/CD** : Intégrer `dotnet format --verify-no-changes` dans le pipeline
+- **Style cohérent** : Respecter les conventions C# standard (.editorconfig)
+
+### Workflow recommandé
+
+1. Faire les modifications de code
+2. Exécuter `dotnet format MinimalAPI.sln`
+3. Vérifier les changements avec `git diff`
+4. Commiter les changements de formatage séparément si nécessaire
+
+### Configuration
+
+Le formatage suit les règles définies dans :
+- `.editorconfig` (si présent)
+- Conventions C# par défaut de .NET
+
+---
+
 ## Checklist de conformité
 
 Avant de créer une nouvelle feature, vérifier :
@@ -391,6 +431,7 @@ Avant de créer une nouvelle feature, vérifier :
 - [ ] Le code suit les conventions de nommage
 - [ ] Pas d'effets de bord dans les handlers
 - [ ] Utilisation du pattern `Result<T>` pour les erreurs
+- [ ] Le code a été formaté avec `dotnet format`
 
 ---
 
@@ -400,6 +441,7 @@ Avant de créer une nouvelle feature, vérifier :
 - Toute déviation doit être discutée et documentée
 - Les tests sont **obligatoires** avant toute merge
 - La programmation fonctionnelle est **non négociable**
+- Le formatage du code avec `dotnet format` est **obligatoire** avant chaque commit
 
 ---
 
