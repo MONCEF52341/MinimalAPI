@@ -2,6 +2,7 @@ using MinimalAPI.Features.Test.Handlers;
 using MinimalAPI.Features.Test.Models;
 using MinimalAPI.Features.Test.Validators;
 using MinimalAPI.Shared;
+using System.Diagnostics;
 
 namespace MinimalAPI.Features.Test;
 
@@ -15,23 +16,23 @@ public static class TestEndpoints
     /// </summary>
     public static void MapTestEndpoints(this WebApplication app, IConfiguration configuration)
     {
-        var group = app.MapGroup("/api/test")
-            .WithTags("Test");
+        var group = app.MapGroup("/api/tests")
+            .WithTags("Tests");
 
         group.MapGet("/hello", HandleHello)
-            .WithName("GetTestHello")
+            .WithName("GetTestsHello")
             .WithSummary("Endpoint de test Hello")
             .WithDescription("Retourne un message de test avec la version de l'API. Paramètre optionnel: ?version=v1")
             .Produces<TestResponse>(200)
-            .Produces(400);
+            .Produces<ErrorResponse>(400);
 
-        group.MapPost("/process", HandleProcess)
-            .WithName("PostTestProcess")
-            .WithSummary("Traitement d'une requête de test")
+        group.MapPost("/", HandleProcess)
+            .WithName("PostTests")
+            .WithSummary("Création d'une requête de test")
             .WithDescription("Traite une requête de test avec validation et retourne une réponse. Paramètre optionnel: ?version=v1")
             .Accepts<TestRequest>("application/json")
             .Produces<TestResponse>(200)
-            .Produces(400);
+            .Produces<ErrorResponse>(400);
     }
 
     private static string GetDefaultVersion(IConfiguration configuration)
@@ -43,19 +44,17 @@ public static class TestEndpoints
         string? version,
         IConfiguration configuration)
     {
+        var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
         var apiVersion = string.IsNullOrEmpty(version)
             ? GetDefaultVersion(configuration)
             : version;
 
-        var request = new TestRequest("Hello World");
-        var result = TestHandler.Handle(request, apiVersion);
-
-        var response = result.Match(
-            success => Results.Ok(success) as IResult,
-            error => Results.BadRequest(new { error })
-        );
-
-        return Task.FromResult(response);
+        return ErrorHandlingExtensions.HandleAsync(async () =>
+        {
+            var request = new TestRequest("Hello World");
+            var result = TestHandler.Handle(request, apiVersion);
+            return await Task.FromResult(result);
+        }, traceId);
     }
 
     private static Task<IResult> HandleProcess(
@@ -63,6 +62,7 @@ public static class TestEndpoints
         string? version,
         IConfiguration configuration)
     {
+        var traceId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
         var apiVersion = string.IsNullOrEmpty(version)
             ? GetDefaultVersion(configuration)
             : version;
@@ -71,18 +71,16 @@ public static class TestEndpoints
         var validationResult = TestValidator.Validate(request);
         if (!validationResult.IsSuccess)
         {
-            return Task.FromResult(Results.BadRequest(new { error = validationResult.Error }) as IResult);
+            var errorResponse = ErrorResponse.ValidationError(validationResult.Error!, traceId: traceId);
+            return Task.FromResult(Results.BadRequest(errorResponse) as IResult);
         }
 
-        // Traitement
-        var result = TestHandler.Handle(validationResult.Value!, apiVersion);
-
-        var response = result.Match(
-            success => Results.Ok(success) as IResult,
-            error => Results.BadRequest(new { error })
-        );
-
-        return Task.FromResult(response);
+        // Traitement avec gestion d'erreurs structurée
+        return ErrorHandlingExtensions.HandleAsync(async () =>
+        {
+            var result = TestHandler.Handle(validationResult.Value!, apiVersion);
+            return await Task.FromResult(result);
+        }, traceId);
     }
 }
 
